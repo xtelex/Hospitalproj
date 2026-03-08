@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Redirecting…</title>
+    <script>
+      // SPA fallback for GitHub Pages.
+      // Redirect unknown paths to index.html and preserve the original path in the URL.
+      // Source pattern based on the official GitHub Pages SPA workaround.
+      (function () {
+        var l = window.location;
+        var repoBase = l.pathname.split('/').slice(0, 2).join('/');
+        var path = l.pathname.replace(repoBase, '');
+        var search = l.search || '';
+        var hash = l.hash || '';
+        l.replace(repoBase + '/?p=' + encodeURIComponent(path + search + hash));
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
+

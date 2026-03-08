@@ -1,3 +1,5 @@
+import { createNotification } from './notificationsStore'
+
 const STORAGE_KEY = 'appointments:v1'
 
 const readJson = (key, fallback) => {
@@ -48,6 +50,7 @@ export const createAppointment = ({
   doctorName,
   doctorSpecialty,
   doctorLocation,
+  amount,
   patientUid,
   patientName,
   patientEmail,
@@ -67,6 +70,7 @@ export const createAppointment = ({
     doctorName: String(doctorName || '').trim(),
     doctorSpecialty: String(doctorSpecialty || '').trim(),
     doctorLocation: String(doctorLocation || '').trim(),
+    amount: amount === undefined || amount === null || amount === '' ? null : Number(amount),
     patientUid: String(patientUid || '').trim(),
     patientName: String(patientName || '').trim(),
     patientEmail: String(patientEmail || '').trim(),
@@ -84,6 +88,23 @@ export const createAppointment = ({
 
   const next = [appointment, ...listAppointments()]
   saveAppointments(next)
+
+  if (appointment.doctorId) {
+    createNotification({
+      recipientType: 'doctor',
+      recipientId: appointment.doctorId,
+      type: 'new_booking',
+      title: 'New appointment booking',
+      body: `${appointment.patientName || appointment.patientEmail || 'A patient'} booked an appointment.`,
+      meta: {
+        appointmentId: appointment.id,
+        scheduledAt: appointment.scheduledAt,
+        patientUid: appointment.patientUid,
+      },
+      createdAt: now,
+    })
+  }
+
   return appointment
 }
 

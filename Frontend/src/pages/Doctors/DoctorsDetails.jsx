@@ -3,6 +3,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { FaStar } from 'react-icons/fa'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { createAppointment, getRoleForUser } from '../../data/appointmentsStore.js'
+import { getDoctorAvailability } from '../../data/doctorAvailabilityStore.js'
+import { listMessages, sendMessage } from '../../data/messagesStore.js'
 import AppointmentBookingModal from '../../components/AppointmentBookingModal.jsx'
 
 import malupitonImg from '../../assets/images/malupiton.png'
@@ -13,25 +15,25 @@ import docBenImg from '../../assets/images/docben.png'
 import docLeiImg from '../../assets/images/doclei.png'
 
 const doctorImageById = {
-  Malupiton: docBenImg,
-  alden: alexImg,
-  coco: docLeiImg,
+  ben: docBenImg,
+  alex: alexImg,
+  lei: docLeiImg,
 }
 
 const doctorOverridesById = {
-  alden: {
+  alex: {
     name: 'Dr. Alex',
     specialty: 'Neurologist',
     location: 'Guinayangan',
     img: alexImg,
   },
-  Malupiton: {
+  ben: {
     name: 'Dr. Ben',
     specialty: 'Surgeon',
     location: 'Balatan, Camarines Sur',
     img: docBenImg,
   },
-  coco: {
+  lei: {
     name: 'Dr. Lei',
     specialty: 'Psychiatrist',
     location: 'Sariaya',
@@ -40,9 +42,9 @@ const doctorOverridesById = {
 }
 
 const DOCTOR_FALLBACK_BY_ID = {
-  Malupiton: '/images/malupiton.png',
-  alden: '/images/alden.png',
-  coco: '/images/coco.png',
+  ben: '/images/malupiton.png',
+  alex: '/images/alden.png',
+  lei: '/images/coco.png',
 }
 
 const applyImgFallback = (fallbackSrc) => (e) => {
@@ -50,6 +52,24 @@ const applyImgFallback = (fallbackSrc) => (e) => {
   if (!fallbackSrc || img.dataset.fallbackApplied) return
   img.dataset.fallbackApplied = '1'
   img.src = fallbackSrc
+}
+
+const DEFAULT_AVAILABILITY_BY_ID = {
+  ben: { days: ['sunday', 'tuesday', 'thursday'], times: ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00'] },
+  alex: { days: ['monday', 'wednesday'], times: ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00'] },
+  lei: { days: ['friday', 'saturday'], times: ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00'] },
+}
+
+const weekdayLong = (day) => String(day || '').slice(0, 1).toUpperCase() + String(day || '').slice(1)
+
+const formatTime = (hhmm) => {
+  const [hStr, mStr] = String(hhmm || '').split(':')
+  const h = Number(hStr)
+  const m = Number(mStr)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return String(hhmm || '')
+  const d = new Date()
+  d.setHours(h, m, 0, 0)
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }).toLowerCase()
 }
 
 const Stars = ({ value = 0, size = 14, className = '' }) => {
@@ -111,6 +131,32 @@ const DoctorDetails = () => {
   const [submitError, setSubmitError] = useState('')
 
   const [bookingOpen, setBookingOpen] = useState(false)
+  const [messageOpen, setMessageOpen] = useState(false)
+  const [messageDraft, setMessageDraft] = useState('')
+  const [messagesTick, setMessagesTick] = useState(0)
+
+  const localAvailability = useMemo(() => {
+    const fallback =
+      DEFAULT_AVAILABILITY_BY_ID[id] ||
+      DEFAULT_AVAILABILITY_BY_ID[String(id || '').toLowerCase()] ||
+      { days: [], times: [] }
+    return getDoctorAvailability(id, fallback)
+  }, [id])
+
+  const localAvailabilityRows = useMemo(() => {
+    if (!localAvailability?.days?.length) return []
+    const times = Array.isArray(localAvailability?.times) ? localAvailability.times : []
+    const first = times[0]
+    const last = times[times.length - 1]
+    const range = times.length === 0 ? '' : times.length === 1 ? formatTime(first) : `${formatTime(first)} - ${formatTime(last)}`
+    const slotsLabel = times.length ? `${range}${times.length > 1 ? ` (${times.length} slots)` : ''}` : 'Any time'
+    return localAvailability.days.map((d) => ({ day: weekdayLong(d), label: slotsLabel }))
+  }, [localAvailability])
+
+  const threadMessages = useMemo(() => {
+    if (!user?.uid) return []
+    return listMessages(id, user.uid)
+  }, [id, user?.uid, messagesTick])
 
   useEffect(() => {
     let cancelled = false
@@ -206,7 +252,7 @@ const DoctorDetails = () => {
     }
   }
 
-  if (loadingDoctor) {
+  if (loadingDoctor && !doctorView) {
     return (
       <section className="py-16">
         <div className="container">
@@ -216,7 +262,7 @@ const DoctorDetails = () => {
     )
   }
 
-  if (doctorError) {
+  if (doctorError && !doctorView) {
     return (
       <section className="py-16">
         <div className="container">
@@ -226,7 +272,7 @@ const DoctorDetails = () => {
     )
   }
 
-  if (!doctor) {
+  if (!doctor && !doctorView) {
     return (
       <section className="py-16">
         <div className="container">
@@ -260,8 +306,8 @@ const DoctorDetails = () => {
                   <h1 className="mt-3 text-[28px] font-[800] text-headingColor">{doctorView?.name}</h1>
 
                   <div className="mt-2 flex items-center gap-3">
-                    <Stars value={doctor.ratingAvg ?? reviewSummary.avg} />
-                    <span className="text-textColor text-[14px]">({doctor.reviewCount ?? reviewSummary.count})</span>
+                    <Stars value={doctor?.ratingAvg ?? reviewSummary.avg} />
+                    <span className="text-textColor text-[14px]">({doctor?.reviewCount ?? reviewSummary.count})</span>
                   </div>
 
                   <p className="mt-3 text-textColor">Specialization in {doctorView?.specialty}</p>
@@ -382,20 +428,25 @@ const DoctorDetails = () => {
             <aside className="bg-white rounded-2xl border border-[#e7eff7] shadow-[rgba(17,12,46,0.08)_0px_18px_50px_0px] p-7">
               <div className="flex items-center justify-between">
                 <p className="text-textColor font-[700]">Ticket Price</p>
-                <p className="text-headingColor font-[800]">{doctor.price} BDT</p>
+                <p className="text-headingColor font-[800]">₱{doctor?.price ?? '—'}</p>
               </div>
 
               <div className="mt-6">
                 <p className="text-headingColor font-[800]">Available Time Slots:</p>
                 <div className="mt-3 space-y-2">
-                  {(doctor.timeSlots || []).map((s, idx) => (
+                  {(localAvailabilityRows.length ? localAvailabilityRows : (doctor?.timeSlots || []).map((s) => ({
+                    day: String(s.day || ''),
+                    label: `${s.from} - ${s.to}`,
+                  }))).map((s, idx) => (
                     <div key={idx} className="flex items-center justify-between text-[13px] text-textColor">
                       <span>{s.day}:</span>
-                      <span>
-                        {s.from} - {s.to}
-                      </span>
+                      <span>{s.label}</span>
                     </div>
                   ))}
+
+                  {!localAvailabilityRows.length && (!doctor?.timeSlots || doctor?.timeSlots.length === 0) && (
+                    <p className="text-[13px] text-textColor">No availability set yet.</p>
+                  )}
                 </div>
               </div>
 
@@ -416,10 +467,106 @@ const DoctorDetails = () => {
               >
                 Book Appointment
               </button>
+
+              {role === 'patient' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!user) {
+                      navigate('/login', { state: { from: location } })
+                      return
+                    }
+                    setMessageOpen(true)
+                  }}
+                  className="mt-3 w-full border border-[#e7eff7] bg-white text-headingColor py-3 rounded-md font-[800] hover:border-primaryColor transition"
+                >
+                  Message Doctor
+                </button>
+              )}
             </aside>
           </div>
         </div>
       </section>
+
+      {messageOpen && (
+        <div className="fixed inset-0 z-[220] bg-black/40 overflow-y-auto">
+          <div className="min-h-full w-full flex items-start justify-center p-4 md:p-6">
+            <div className="w-full max-w-[720px] my-6 rounded-2xl bg-white border border-[#e7eff7] shadow-[rgba(17,12,46,0.20)_0px_40px_120px_0px]">
+              <div className="p-6 flex items-start justify-between gap-4 border-b border-[#eef4fb]">
+                <div className="min-w-0">
+                  <p className="text-headingColor font-[900] text-[18px] truncate">Message</p>
+                  <p className="mt-1 text-textColor text-[13px] truncate">
+                    {doctorView?.name || doctor?.name || `Doctor ${id}`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMessageOpen(false)}
+                  className="h-10 px-4 rounded-xl border border-[#e7eff7] bg-white font-[900] text-headingColor hover:border-primaryColor transition"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="p-6">
+                <div className="h-[320px] overflow-y-auto rounded-xl border border-[#e7eff7] bg-[#fbfdff] p-4 space-y-3">
+                  {threadMessages.length === 0 ? (
+                    <p className="text-[13px] text-textColor">No messages yet. Send the first one.</p>
+                  ) : (
+                    threadMessages.map((m) => (
+                      <div
+                        key={m.id}
+                        className={[
+                          'max-w-[85%] rounded-xl px-3 py-2 text-[13px] leading-6',
+                          m.fromRole === 'patient'
+                            ? 'ml-auto bg-primaryColor text-white'
+                            : 'mr-auto bg-white border border-[#e7eff7] text-headingColor',
+                        ].join(' ')}
+                      >
+                        <p>{m.text}</p>
+                        <p className={['mt-1 text-[11px]', m.fromRole === 'patient' ? 'text-white/80' : 'text-textColor'].join(' ')}>
+                          {m.createdAt ? new Date(m.createdAt).toLocaleString() : ''}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="mt-4 flex items-center gap-2">
+                  <input
+                    value={messageDraft}
+                    onChange={(e) => setMessageDraft(e.target.value)}
+                    className="flex-1 h-11 px-4 rounded-xl border border-[#e7eff7] bg-white outline-none focus:border-primaryColor"
+                    placeholder="Write a message…"
+                  />
+                  <button
+                    type="button"
+                    disabled={!messageDraft.trim()}
+                    onClick={() => {
+                      if (!user?.uid) return
+                      const sent = sendMessage({
+                        doctorId: id,
+                        doctorName: doctorView?.name || doctor?.name || `Doctor ${id}`,
+                        patientUid: user.uid,
+                        patientName: user.displayName || user.email || 'Patient',
+                        fromRole: 'patient',
+                        text: messageDraft,
+                      })
+                      if (sent) {
+                        setMessageDraft('')
+                        setMessagesTick((t) => t + 1)
+                      }
+                    }}
+                    className="h-11 px-5 rounded-xl bg-primaryColor text-white font-[900] hover:bg-sky-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <AppointmentBookingModal
         open={bookingOpen}
@@ -428,6 +575,8 @@ const DoctorDetails = () => {
           name: doctorView?.name || doctor?.name || `Doctor ${id}`,
           specialty: doctorView?.specialty || doctor?.specialty || '',
           location: doctorView?.location || doctor?.location || '',
+          availableDays: localAvailability?.days || [],
+          availableTimes: localAvailability?.times || [],
         }}
         defaultName={user?.displayName || ''}
         onClose={() => setBookingOpen(false)}
@@ -439,6 +588,7 @@ const DoctorDetails = () => {
             doctorName: doctorView?.name || doctor?.name || `Doctor ${id}`,
             doctorSpecialty: doctorView?.specialty || doctor?.specialty || '',
             doctorLocation: doctorView?.location || doctor?.location || '',
+            amount: doctor?.price || 700,
             patientUid: user.uid,
             patientName,
             patientEmail: user.email || '',

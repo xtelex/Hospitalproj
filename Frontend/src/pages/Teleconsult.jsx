@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { getDoctorAppointments, getDoctorIdForUser, getRoleForUser } from '../data/appointmentsStore'
 import { addPrescription } from '../data/healthRecordsStore'
+import { getDoctorDirectoryEntry } from '../data/doctorsDirectory'
 
 const msgKey = (room) => `teleconsult:chat:v1:${room}`
 
@@ -25,6 +26,8 @@ const Teleconsult = () => {
 
   const role = getRoleForUser(user.uid)
   const doctorId = role === 'doctor' ? getDoctorIdForUser(user.uid) : ''
+  const doctorEntry = role === 'doctor' && doctorId ? getDoctorDirectoryEntry(doctorId) : null
+  const senderName = doctorEntry?.name || user.displayName || user.email || 'You'
 
   const room = useMemo(() => `hospital-project-${user.uid.slice(0, 10)}`, [user.uid])
   const roomUrl = `https://meet.jit.si/${encodeURIComponent(room)}`
@@ -72,7 +75,7 @@ const Teleconsult = () => {
       ...messages,
       {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        by: user.displayName || user.email || 'You',
+        by: senderName,
         text: t,
         at: new Date().toISOString(),
       },

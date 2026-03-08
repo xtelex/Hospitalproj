@@ -1,6 +1,14 @@
-﻿{
+{
+  "watch": [
+    ".env",
+    "server.js",
+    "routes",
+    "lib",
+    "models"
+  ],
   "ignore": [
     ".data/*",
     ".data"
   ]
 }
+

@@ -1,9 +1,55 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { getDoctorAvailability } from '../data/doctorAvailabilityStore'
 
 const tomorrowLocalDate = () => {
   const d = new Date(Date.now() + 24 * 60 * 60 * 1000)
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+const weekdayLabel = (day) => String(day || '').slice(0, 1).toUpperCase() + String(day || '').slice(1, 3)
+
+const dateToIsoLocal = (d) => {
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+const isoToDate = (iso) => {
+  const d = new Date(`${iso}T00:00:00`)
+  return Number.isFinite(d.getTime()) ? d : null
+}
+
+const isAllowedWeekday = (isoDate, allowedDays) => {
+  if (!isoDate) return false
+  if (!Array.isArray(allowedDays) || allowedDays.length === 0) return true
+  const d = isoToDate(isoDate)
+  if (!d) return false
+  const wd = d.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+  return allowedDays.includes(wd)
+}
+
+const nextAllowedDate = ({ startIsoDate, allowedDays }) => {
+  if (!startIsoDate) return tomorrowLocalDate()
+  const start = isoToDate(startIsoDate) || isoToDate(tomorrowLocalDate())
+  if (!start) return tomorrowLocalDate()
+
+  for (let i = 0; i < 31; i += 1) {
+    const d = new Date(start.getTime())
+    d.setDate(start.getDate() + i)
+    const iso = dateToIsoLocal(d)
+    if (isAllowedWeekday(iso, allowedDays)) return iso
+  }
+  return startIsoDate
+}
+
+const formatTime = (hhmm) => {
+  const [hStr, mStr] = String(hhmm || '').split(':')
+  const h = Number(hStr)
+  const m = Number(mStr)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return String(hhmm || '')
+  const d = new Date()
+  d.setHours(h, m, 0, 0)
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }).toLowerCase()
 }
 
 const AppointmentBookingModal = ({ open, doctor, defaultName, defaultAddress, onClose, onConfirm }) => {
@@ -17,6 +63,42 @@ const AppointmentBookingModal = ({ open, doctor, defaultName, defaultAddress, on
   const [visitType, setVisitType] = useState('first-time')
   const [symptoms, setSymptoms] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [availabilityNote, setAvailabilityNote] = useState('')
+
+  const availability = useMemo(() => {
+    const fallback = {
+      days: doctor?.availableDays || [],
+      times: doctor?.availableTimes || [],
+    }
+    return getDoctorAvailability(doctor?.id, fallback)
+  }, [doctor])
+
+  const availabilityDaysLabel = useMemo(() => {
+    if (!availability?.days?.length) return 'Any day'
+    return availability.days.map(weekdayLabel).join(', ')
+  }, [availability])
+
+  const availabilityTimesLabel = useMemo(() => {
+    if (!availability?.times?.length) return 'Any time'
+    return availability.times.map(formatTime).join(', ')
+  }, [availability])
+
+  useEffect(() => {
+    if (!open) return
+    setAvailabilityNote('')
+    setPatientName(defaultName || '')
+    setAddress(defaultAddress || '')
+    setAge('')
+    setSymptoms('')
+    setPaymentMethod('gcash')
+    setTriageLevel('routine')
+    setVisitType('first-time')
+
+    const nextDate = nextAllowedDate({ startIsoDate: tomorrowLocalDate(), allowedDays: availability.days })
+    setDate(nextDate)
+    const nextTime = availability.times?.[0] || '09:00'
+    setTime(nextTime)
+  }, [open, doctor?.id, defaultName, defaultAddress, availability.days, availability.times])
 
   const doctorLabel = useMemo(() => {
     const parts = []
@@ -28,8 +110,9 @@ const AppointmentBookingModal = ({ open, doctor, defaultName, defaultAddress, on
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black/40 grid place-items-center p-4">
-      <div className="w-full max-w-[720px] rounded-2xl bg-white border border-[#e7eff7] shadow-[rgba(17,12,46,0.20)_0px_40px_120px_0px]">
+    <div className="fixed inset-0 z-[200] bg-black/40 overflow-y-auto">
+      <div className="min-h-full w-full flex items-start justify-center p-4 md:p-6">
+        <div className="w-full max-w-[720px] my-6 rounded-2xl bg-white border border-[#e7eff7] shadow-[rgba(17,12,46,0.20)_0px_40px_120px_0px]">
         <div className="p-6 flex items-start justify-between gap-4 border-b border-[#eef4fb]">
           <div className="min-w-0">
             <p className="text-headingColor font-[900] text-[18px] truncate">Book an appointment</p>
@@ -74,6 +157,15 @@ const AppointmentBookingModal = ({ open, doctor, defaultName, defaultAddress, on
             }
             if (!time) {
               alert('Please select a time.')
+              return
+            }
+
+            if (!isAllowedWeekday(date, availability.days)) {
+              alert(`This doctor is available on: ${availabilityDaysLabel}.`)
+              return
+            }
+            if (availability?.times?.length && !availability.times.includes(time)) {
+              alert(`This doctor is available at: ${availabilityTimesLabel}.`)
               return
             }
 
@@ -199,24 +291,54 @@ const AppointmentBookingModal = ({ open, doctor, defaultName, defaultAddress, on
               <span className="text-[13px] font-[800] text-headingColor">Date</span>
               <input
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                min={tomorrowLocalDate()}
+                onChange={(e) => {
+                  const picked = e.target.value
+                  if (!picked) return setDate(picked)
+                  if (isAllowedWeekday(picked, availability.days)) {
+                    setAvailabilityNote('')
+                    setDate(picked)
+                    return
+                  }
+                  const next = nextAllowedDate({ startIsoDate: picked, allowedDays: availability.days })
+                  setAvailabilityNote(`Doctor is available on ${availabilityDaysLabel}. Moved to next available date.`)
+                  setDate(next)
+                }}
                 type="date"
                 className="mt-2 w-full h-12 px-4 rounded-xl border border-[#e7eff7] bg-white outline-none focus:border-primaryColor"
                 required
                 disabled={submitting}
               />
+              <p className="mt-2 text-[12px] text-textColor">Available: {availabilityDaysLabel}</p>
             </label>
 
             <label className="block">
               <span className="text-[13px] font-[800] text-headingColor">Time</span>
-              <input
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                type="time"
-                className="mt-2 w-full h-12 px-4 rounded-xl border border-[#e7eff7] bg-white outline-none focus:border-primaryColor"
-                required
-                disabled={submitting}
-              />
+              {availability?.times?.length ? (
+                <select
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="mt-2 w-full h-12 px-4 rounded-xl border border-[#e7eff7] bg-white outline-none focus:border-primaryColor"
+                  required
+                  disabled={submitting}
+                >
+                  {availability.times.map((t) => (
+                    <option key={t} value={t}>
+                      {formatTime(t)}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  type="time"
+                  className="mt-2 w-full h-12 px-4 rounded-xl border border-[#e7eff7] bg-white outline-none focus:border-primaryColor"
+                  required
+                  disabled={submitting}
+                />
+              )}
+              <p className="mt-2 text-[12px] text-textColor">Available: {availabilityTimesLabel}</p>
             </label>
 
             <label className="block md:col-span-2">
@@ -231,6 +353,7 @@ const AppointmentBookingModal = ({ open, doctor, defaultName, defaultAddress, on
                 <option value="debit">Debit</option>
                 <option value="credit">Credit</option>
               </select>
+              <p className="mt-2 text-[12px] text-textColor">After booking, click Pay Now in Profile → Upcoming Bookings.</p>
             </label>
 
             <label className="block md:col-span-2">
@@ -245,6 +368,12 @@ const AppointmentBookingModal = ({ open, doctor, defaultName, defaultAddress, on
               />
             </label>
           </div>
+
+          {!!availabilityNote && (
+            <div className="mt-4 rounded-xl border border-[#d9e8f5] bg-[#f8fbff] px-4 py-3 text-[13px] text-textColor">
+              {availabilityNote}
+            </div>
+          )}
 
           <div className="mt-6 flex items-center justify-end gap-3">
             <button
@@ -268,6 +397,7 @@ const AppointmentBookingModal = ({ open, doctor, defaultName, defaultAddress, on
           </div>
         </form>
       </div>
+    </div>
     </div>
   )
 }

@@ -1,10 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
-import { getDoctorAppointments, getDoctorIdForUser, getRoleForUser } from '../data/appointmentsStore'
+import { getDoctorAppointments, getDoctorIdForUser, getPatientAppointments, getRoleForUser } from '../data/appointmentsStore'
 
 const keyFor = (patientUid) => `labs:v1:${patientUid}`
-const noteKeyFor = (patientUid, doctorId) => `labs:note:v1:${patientUid}:${doctorId}`
+const normalizeDoctorKey = (doctorId) => String(doctorId || '').trim()
+const noteKeyFor = (patientUid, doctorId) => `labs:note:v1:${patientUid}:${normalizeDoctorKey(doctorId).toLowerCase()}`
+const noteKeyForLegacy = (patientUid, doctorId) => `labs:note:v1:${patientUid}:${normalizeDoctorKey(doctorId)}`
+
+const readDoctorNote = (patientUid, doctorId) => {
+  if (!patientUid || !doctorId) return ''
+  return (
+    localStorage.getItem(noteKeyFor(patientUid, doctorId)) ||
+    localStorage.getItem(noteKeyForLegacy(patientUid, doctorId)) ||
+    ''
+  )
+}
+
+const writeDoctorNote = (patientUid, doctorId, note) => {
+  if (!patientUid || !doctorId) return
+  localStorage.setItem(noteKeyFor(patientUid, doctorId), note)
+  localStorage.setItem(noteKeyForLegacy(patientUid, doctorId), note)
+}
 
 const readJson = (key, fallback) => {
   try {
@@ -80,6 +97,30 @@ const LabResults = () => {
   const role = getRoleForUser(user.uid)
   const doctorId = role === 'doctor' ? getDoctorIdForUser(user.uid) : ''
 
+  const patientDoctors = useMemo(() => {
+    if (role !== 'patient') return []
+    const appts = getPatientAppointments(user.uid)
+    const map = new Map()
+    const sorted = [...appts].sort((a, b) => {
+      const at = new Date(a?.scheduledAt || 0).getTime()
+      const bt = new Date(b?.scheduledAt || 0).getTime()
+      return bt - at
+    })
+
+    for (const a of sorted) {
+      if (!a?.doctorId) continue
+      if (!map.has(a.doctorId)) {
+        map.set(a.doctorId, {
+          id: a.doctorId,
+          name: a.doctorName || `Doctor ${a.doctorId}`,
+          specialty: a.doctorSpecialty || '',
+        })
+      }
+    }
+
+    return Array.from(map.values())
+  }, [role, user.uid])
+
   const doctorPatients = useMemo(() => {
     if (role !== 'doctor' || !doctorId) return []
     const appts = getDoctorAppointments(doctorId)
@@ -102,19 +143,37 @@ const LabResults = () => {
     return doctorPatients[0]?.uid || ''
   })
 
+  const [selectedDoctorId, setSelectedDoctorId] = useState(() => {
+    if (role !== 'patient') return ''
+    const appts = getPatientAppointments(user.uid)
+    const latest = [...appts].sort((a, b) => new Date(b?.scheduledAt || 0) - new Date(a?.scheduledAt || 0))[0]
+    return latest?.doctorId || ''
+  })
+
   useEffect(() => {
     if (role !== 'doctor') return
     if (selectedPatientUid) return
     if (doctorPatients[0]?.uid) setSelectedPatientUid(doctorPatients[0].uid)
   }, [role, selectedPatientUid, doctorPatients])
 
-  const effectivePatientUid = role === 'doctor' ? selectedPatientUid : user.uid
+  useEffect(() => {
+    if (role !== 'patient') return
+    if (selectedDoctorId) return
+    if (patientDoctors[0]?.id) setSelectedDoctorId(patientDoctors[0].id)
+  }, [role, selectedDoctorId, patientDoctors])
 
-  const [note, setNote] = useState(() =>
-    role === 'doctor' && effectivePatientUid && doctorId
-      ? localStorage.getItem(noteKeyFor(effectivePatientUid, doctorId)) || ''
-      : '',
-  )
+  const effectivePatientUid = role === 'doctor' ? selectedPatientUid : user.uid
+  const effectiveDoctorId = role === 'doctor' ? doctorId : selectedDoctorId
+
+  const [note, setNote] = useState('')
+
+  useEffect(() => {
+    if (!effectivePatientUid || !effectiveDoctorId) {
+      setNote('')
+      return
+    }
+    setNote(readDoctorNote(effectivePatientUid, effectiveDoctorId))
+  }, [effectivePatientUid, effectiveDoctorId])
 
   const labs = useMemo(() => {
     if (!effectivePatientUid) return []
@@ -168,7 +227,6 @@ const LabResults = () => {
                   value={selectedPatientUid}
                   onChange={(e) => {
                     setSelectedPatientUid(e.target.value)
-                    setNote('')
                   }}
                   className="h-11 px-4 rounded-xl border border-[#e7eff7] bg-white outline-none focus:border-primaryColor"
                   disabled={!doctorId || doctorPatients.length === 0}
@@ -179,6 +237,36 @@ const LabResults = () => {
                     doctorPatients.map((p) => (
                       <option key={p.uid} value={p.uid}>
                         {p.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <p className="text-[13px] text-textColor">
+                Abnormal flags:{' '}
+                <span className="font-[900] text-headingColor">{abnormalCount}</span>
+              </p>
+            </div>
+          )}
+
+          {role === 'patient' && (
+            <div className="mt-6 flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-[13px] font-[900] text-headingColor">Doctor:</span>
+                <select
+                  value={selectedDoctorId}
+                  onChange={(e) => setSelectedDoctorId(e.target.value)}
+                  className="h-11 px-4 rounded-xl border border-[#e7eff7] bg-white outline-none focus:border-primaryColor"
+                  disabled={patientDoctors.length === 0}
+                >
+                  {patientDoctors.length === 0 ? (
+                    <option value="">No doctors yet</option>
+                  ) : (
+                    patientDoctors.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                        {d.specialty ? ` • ${d.specialty}` : ''}
                       </option>
                     ))
                   )}
@@ -277,8 +365,8 @@ const LabResults = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      if (!effectivePatientUid || !doctorId) return
-                      localStorage.setItem(noteKeyFor(effectivePatientUid, doctorId), note)
+                      if (!effectivePatientUid || !effectiveDoctorId) return
+                      writeDoctorNote(effectivePatientUid, effectiveDoctorId, note)
                       alert('Saved.')
                     }}
                     className="mt-4 w-full h-11 rounded-xl bg-primaryColor text-white font-[900] hover:bg-sky-700 transition"

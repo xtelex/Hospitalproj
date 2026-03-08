@@ -4,9 +4,9 @@ import { useAuth } from '../auth/AuthProvider'
 import { createAppointment, getRoleForUser } from '../data/appointmentsStore'
 
 const CATALOG = [
-  { id: 'alden', name: 'Dr. Alex', specialty: 'Neurologist', location: 'Guinayangan' },
-  { id: 'Malupiton', name: 'Dr. Ben', specialty: 'Surgeon', location: 'Balatan, Camarines Sur' },
-  { id: 'coco', name: 'Dr. Lei', specialty: 'Psychiatrist', location: 'Sariaya' },
+  { id: 'alex', name: 'Dr. Alex', specialty: 'Neurologist', location: 'Guinayangan' },
+  { id: 'ben', name: 'Dr. Ben', specialty: 'Surgeon', location: 'Balatan, Camarines Sur' },
+  { id: 'lei', name: 'Dr. Lei', specialty: 'Psychiatrist', location: 'Sariaya' },
 ]
 
 const tomorrowLocalDate = () => {
@@ -81,6 +81,7 @@ const BookVisit = () => {
                   doctorName: doctor.name,
                   doctorSpecialty: doctor.specialty,
                   doctorLocation: doctor.location,
+                  amount: 700,
                   patientUid: user.uid,
                   patientName: nameTrimmed,
                   patientEmail: user.email || '',

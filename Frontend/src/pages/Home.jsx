@@ -26,9 +26,9 @@ const applyImgFallback = (fallbackSrc) => (e) => {
 }
 
 const GREAT_DOCTORS = [
-  { name: 'Dr. Ben', specialty: 'Surgeon', rating: 4.5, img: docBenImg, fallbackImg: '/images/malupiton.png', to: '/doctors/Malupiton' },
-  { name: 'Dr. Alex', specialty: 'Neurologist', rating: 5, img: alexImg, fallbackImg: '/images/alden.png', to: '/doctors/alden' },
-  { name: 'Dr. Lei', specialty: 'Psychiatrist', rating: 4.8, img: docLeiImg, fallbackImg: '/images/coco.png', to: '/doctors/coco' },
+  { name: 'Dr. Ben', specialty: 'Surgeon', rating: 4.5, img: docBenImg, imgPos: 'object-[center_40%]', fallbackImg: '/images/malupiton.png', to: '/doctors/ben' },
+  { name: 'Dr. Alex', specialty: 'Neurologist', rating: 5, img: alexImg, fallbackImg: '/images/alden.png', to: '/doctors/alex' },
+  { name: 'Dr. Lei', specialty: 'Psychiatrist', rating: 4.8, img: docLeiImg, imgPos: 'object-[center_38%]', fallbackImg: '/images/coco.png', to: '/doctors/lei' },
 ]
 
 const TESTIMONIALS = [
@@ -262,7 +262,12 @@ const Home = () => {
                 className="bg-white rounded-2xl border border-[#e7eff7] shadow-[rgba(17,12,46,0.06)_0px_18px_50px_0px] overflow-hidden flex flex-col"
               >
                 <div className="relative bg-[#f7fbff] aspect-[4/3] overflow-hidden shrink-0">
-                  <img src={d.img} alt={d.name} className="w-full h-full object-cover block" onError={applyImgFallback(d.fallbackImg)} />
+                  <img
+                    src={d.img}
+                    alt={d.name}
+                    className={['w-full h-full object-cover block', d.imgPos || 'object-center'].join(' ')}
+                    onError={applyImgFallback(d.fallbackImg)}
+                  />
                 </div>
                 <div className="p-6 bg-white relative z-10">
                   <p className="text-[18px] font-[900] text-headingColor">{d.name}</p>

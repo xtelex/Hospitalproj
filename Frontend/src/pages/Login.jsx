@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { FiLock, FiMail } from 'react-icons/fi'
 import { useAuth } from '../auth/AuthProvider'
+import patientImg from '../assets/images/patient.jpg'
+import { getDoctorDirectoryEntry, listDoctorDirectory } from '../data/doctorsDirectory'
+import { setDoctorIdForUser, setRoleForUser } from '../data/appointmentsStore'
 
 const Login = () => {
   const navigate = useNavigate()
@@ -9,20 +12,46 @@ const Login = () => {
   const { sendPasswordReset, signInWithEmailPassword, signInWithGoogle } = useAuth()
 
   const [role, setRole] = useState('patient')
+  const [doctorId, setDoctorId] = useState('alex')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loggingIn, setLoggingIn] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
 
+  const selectedDoctor = role === 'doctor' ? getDoctorDirectoryEntry(doctorId) : null
+  const doctorOptions = listDoctorDirectory()
+  const roleHeroImg = role === 'doctor' ? selectedDoctor?.photo || patientImg : patientImg
+  const roleHeroAlt = role === 'doctor' ? selectedDoctor?.name || 'Doctor' : 'Patient'
+
+  const microcopyVariants = [
+    {
+      patient: 'Book visits, view lab results, and manage your health records in one secure place.',
+      doctor: 'Manage patient schedules, verify licenses, and review medical history securely.',
+    },
+    {
+      patient: 'Schedule appointments fast, check lab results, and keep your medical records organized.',
+      doctor: 'Streamline appointments, complete license verification, and access patient records on demand.',
+    },
+    {
+      patient: 'Easily book visits, track lab results, and access your health history anytime.',
+      doctor: 'Stay on top of schedules, confirm credentials, and view patient medical history in one dashboard.',
+    },
+  ]
+  const activeMicrocopyVariant = 0
+  const cardMicrocopy = microcopyVariants[activeMicrocopyVariant] ?? microcopyVariants[0]
+
   const onSubmit = async (e) => {
     e.preventDefault()
     if (loggingIn || googleLoading) return
     setLoggingIn(true)
     try {
+      if (role === 'doctor' && !selectedDoctor) throw new Error('Please select a doctor.')
       const signedInUser = await signInWithEmailPassword({ email, password })
       if (signedInUser?.uid) {
-        localStorage.setItem(`role:${signedInUser.uid}`, role)
+        setRoleForUser(signedInUser.uid, role)
+        if (role === 'doctor') setDoctorIdForUser(signedInUser.uid, doctorId)
+        else setDoctorIdForUser(signedInUser.uid, '')
       }
       const target = location.state?.from?.pathname || '/home'
       navigate(target, { replace: true })
@@ -43,7 +72,7 @@ const Login = () => {
 
             <p className="inline-flex items-center gap-2 text-primaryColor font-[800] text-[18px]">
               <span className="grid place-items-center w-8 h-8 rounded-lg bg-primaryColor text-white">+</span>
-              MediKill
+              MEDI CARE
             </p>
 
             <h1 className="mt-8 text-[42px] md:text-[52px] leading-[1.05] font-[800] text-headingColor">
@@ -53,14 +82,25 @@ const Login = () => {
               Log in as a patient or a doctor.
             </p>
 
+            <div className="mt-8 overflow-hidden rounded-2xl border border-white/50 bg-white/60">
+              <img
+                src={roleHeroImg}
+                alt={roleHeroAlt}
+                className={[
+                  'w-full h-44 md:h-56 object-cover',
+                  role === 'patient' ? 'object-[left_top]' : 'object-[center_28%]',
+                ].join(' ')}
+              />
+            </div>
+
             <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="rounded-xl border border-[#e7eff7] bg-white/70 p-5">
                 <p className="font-[800] text-headingColor">Patient</p>
-                <p className="text-textColor mt-1 text-[14px] leading-6">Book appointments and manage visits.</p>
+                <p className="text-textColor mt-1 text-[14px] leading-6">{cardMicrocopy.patient}</p>
               </div>
               <div className="rounded-xl border border-[#e7eff7] bg-white/70 p-5">
                 <p className="font-[800] text-headingColor">Doctor</p>
-                <p className="text-textColor mt-1 text-[14px] leading-6">Manage schedules and patient records.</p>
+                <p className="text-textColor mt-1 text-[14px] leading-6">{cardMicrocopy.doctor}</p>
               </div>
             </div>
           </div>
@@ -100,6 +140,25 @@ const Login = () => {
                 Doctor
               </button>
             </div>
+
+            {role === 'doctor' && (
+              <label className="block mt-5">
+                <span className="text-[14px] font-[700] text-headingColor">Doctor profile</span>
+                <select
+                  value={doctorId}
+                  onChange={(e) => setDoctorId(e.target.value)}
+                  disabled={loggingIn || googleLoading}
+                  className="mt-2 w-full h-12 px-4 rounded-xl border border-[#e7eff7] bg-white outline-none focus:border-primaryColor disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {doctorOptions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} ({d.id})
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-[12px] text-textColor">Your name and photo will match the selected doctor.</p>
+              </label>
+            )}
 
             <form onSubmit={onSubmit} className="mt-6 space-y-4">
               <label className="block">
@@ -182,9 +241,12 @@ const Login = () => {
                   if (googleLoading || loggingIn) return
                   try {
                     setGoogleLoading(true)
+                    if (role === 'doctor' && !selectedDoctor) throw new Error('Please select a doctor.')
                     const signedInUser = await signInWithGoogle()
                     if (signedInUser?.uid) {
-                      localStorage.setItem(`role:${signedInUser.uid}`, role)
+                      setRoleForUser(signedInUser.uid, role)
+                      if (role === 'doctor') setDoctorIdForUser(signedInUser.uid, doctorId)
+                      else setDoctorIdForUser(signedInUser.uid, '')
                     }
                     const target = location.state?.from?.pathname || '/home'
                     navigate(target, { replace: true })

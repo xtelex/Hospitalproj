@@ -7,11 +7,10 @@ import AuthProvider from './auth/AuthProvider.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <AuthProvider>
         <App />
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,
 )
-

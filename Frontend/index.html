@@ -2,9 +2,23 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>Hospital Project</title>
+    <script>
+      // GitHub Pages SPA support:
+      // If we were redirected from `404.html` with `?p=...`, restore the original path.
+      ;(function () {
+        var params = new URLSearchParams(window.location.search)
+        var p = params.get('p')
+        if (!p) return
+        var l = window.location
+        var repoBase = l.pathname.split('/').slice(0, 2).join('/') + '/'
+        var decoded = decodeURIComponent(p)
+        var next = repoBase + decoded.replace(/^\//, '')
+        window.history.replaceState(null, '', next)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

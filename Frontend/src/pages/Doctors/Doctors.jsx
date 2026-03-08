@@ -23,7 +23,7 @@ const doctor2Img = alexImg
 const doctor3Img = docLeiImg
 const DOCTORS = [
   {
-    id: 'Malupiton',
+    id: 'ben',
     name: 'Dr. Ben',
     specialty: 'Surgeon',
     rating: 4.5,
@@ -34,10 +34,11 @@ const DOCTORS = [
     experienceYears: 15,
     medSchool: 'St. Luke’s College of Medicine',
     availableDays: ['sunday', 'tuesday', 'thursday'],
+    availableTimes: ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00'],
     title: 'from-yellowColor/15 to-yellowColor/5',
   },
   {
-    id: 'alden',
+    id: 'alex',
     name: 'Dr. Alex',
     specialty: 'Neurologist',
     rating: 0,
@@ -48,10 +49,11 @@ const DOCTORS = [
     experienceYears: 8,
     medSchool: 'University of the Philippines',
     availableDays: ['monday', 'wednesday'],
+    availableTimes: ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00'],
     title: 'from-purpleColor/15 to-purpleColor/5',
   },
   {
-    id: 'coco',
+    id: 'lei',
     name: 'Dr. Lei',
     specialty: 'Psychiatrist',
     rating: 0,
@@ -62,6 +64,7 @@ const DOCTORS = [
     experienceYears: 10,
     medSchool: 'Ateneo School of Medicine',
     availableDays: ['friday', 'saturday'],
+    availableTimes: ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00'],
     title: 'from-irisBlueColor/15 to-irisBlueColor/5',
   },
 ]
@@ -459,6 +462,7 @@ const Doctors = () => {
             doctorName: bookingDoctor.name,
             doctorSpecialty: bookingDoctor.specialty,
             doctorLocation: bookingDoctor.location,
+            amount: 700,
             patientUid: user.uid,
             patientName,
             patientEmail: user.email || '',
