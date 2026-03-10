@@ -243,6 +243,8 @@ const Login = () => {
                     setGoogleLoading(true)
                     if (role === 'doctor' && !selectedDoctor) throw new Error('Please select a doctor.')
                     const signedInUser = await signInWithGoogle({ role, doctorId })
+                    // On mobile, Google sign-in may use redirect (no immediate user object).
+                    if (!signedInUser) return
                     if (signedInUser?.uid) {
                       setRoleForUser(signedInUser.uid, role)
                       if (role === 'doctor') setDoctorIdForUser(signedInUser.uid, doctorId)
