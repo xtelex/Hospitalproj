@@ -9,6 +9,10 @@
       // Redirect unknown paths to index.html and preserve the original path in the URL.
       // Source pattern based on the official GitHub Pages SPA workaround.
       (function () {
+        // This redirect is only intended for GitHub Pages. On other hosts (e.g. Vercel),
+        // it can cause redirect loops and extremely long URLs.
+        if (!/github\.io$/i.test(window.location.hostname)) return
+
         var l = window.location;
         var repoBase = l.pathname.split('/').slice(0, 2).join('/');
         var path = l.pathname.replace(repoBase, '');
@@ -20,4 +24,3 @@
   </head>
   <body></body>
 </html>
-

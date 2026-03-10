@@ -12,10 +12,15 @@
         var params = new URLSearchParams(window.location.search)
         var p = params.get('p')
         if (!p) return
-        var l = window.location
-        var repoBase = l.pathname.split('/').slice(0, 2).join('/') + '/'
         var decoded = decodeURIComponent(p)
-        var next = repoBase + decoded.replace(/^\//, '')
+        // Guard against infinite loops if `p` accidentally contains another `?p=...`.
+        if (decoded.startsWith('/?p=') || decoded.startsWith('?p=')) return
+
+        // Vite replaces `%BASE_URL%` at build time (e.g. "/" or "/<repo>/").
+        var base = '%BASE_URL%'
+        if (base && !base.endsWith('/')) base += '/'
+
+        var next = (base || '/') + decoded.replace(/^\//, '')
         window.history.replaceState(null, '', next)
       })()
     </script>
