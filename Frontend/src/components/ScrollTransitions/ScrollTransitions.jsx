@@ -8,6 +8,10 @@ function prefersReducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
 }
 
+function pointerIsCoarse() {
+  return typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)')?.matches
+}
+
 function markStaggerChildren(container) {
   const kids = Array.from(container.children || [])
   kids.forEach((child, idx) => {
@@ -33,7 +37,8 @@ export default function ScrollTransitions() {
       el.style.removeProperty('--st-par')
     }
 
-    if (prefersReducedMotion()) return
+    // Coarse-pointer devices (most phones/tablets) often suffer scroll jank with heavy scroll-linked effects.
+    if (prefersReducedMotion() || pointerIsCoarse()) return
 
     const observed = new WeakSet()
 

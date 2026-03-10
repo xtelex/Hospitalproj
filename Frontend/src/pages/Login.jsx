@@ -242,7 +242,7 @@ const Login = () => {
                   try {
                     setGoogleLoading(true)
                     if (role === 'doctor' && !selectedDoctor) throw new Error('Please select a doctor.')
-                    const signedInUser = await signInWithGoogle()
+                    const signedInUser = await signInWithGoogle({ role, doctorId })
                     if (signedInUser?.uid) {
                       setRoleForUser(signedInUser.uid, role)
                       if (role === 'doctor') setDoctorIdForUser(signedInUser.uid, doctorId)
@@ -264,7 +264,9 @@ const Login = () => {
                 )}
                 {googleLoading ? 'Opening Google...' : 'Continue with Google'}
               </button>
-              <p className="mt-2 text-[12px] text-textColor">Uses your Gmail/Google account (popup).</p>
+              <p className="mt-2 text-[12px] text-textColor">
+                Uses your Gmail/Google account (popup on desktop, redirect on mobile).
+              </p>
             </div>
 
             <p className="mt-6 text-[14px] text-textColor">

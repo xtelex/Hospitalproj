@@ -27,6 +27,16 @@ body {
     background-attachment: fixed;
 }
 
+/* iOS/Android: `background-attachment: fixed` and heavy blur animations can cause scroll jank. */
+@media (pointer: coarse){
+    .app-bg{
+        background-attachment: scroll;
+    }
+    .app-bg::after{
+        animation: none !important;
+    }
+}
+
 .app-bg::before{
     content: "";
     position: absolute;
